@@ -59,14 +59,14 @@ LlamaActionConfig = HF_LlamaActionConfig.__class__
 
 
 def get_max_action_tokens(ctx: InputContext):
-    hf_config = ctx.get_hf_config(LlamaActionConfig)
+    hf_config = ctx.model_config.hf_config
     num_action_tokens = hf_config.num_action_embeddings
     num_frames = hf_config.num_temporal_embeddings - 1
     return num_action_tokens * num_frames
 
 
 def create_dummy_data(ctx: InputContext, seq_len: int, mm_counts: Mapping[str, int]):
-    hf_config = ctx.get_hf_config(LlamaActionConfig)
+    hf_config = ctx.model_config.hf_config
 
     num_frames = hf_config.num_temporal_embeddings
     vocab_size = hf_config.vocab_size
@@ -171,7 +171,7 @@ class LlamaActionForCausalLM(nn.Module, SupportsMultiModal):
         super().__init__()
         self.config = config
         self.multimodal_config = multimodal_config
-
+                
         self.num_spatio_embeddings = config.num_spatio_embeddings
         self.num_temporal_embeddings = config.num_temporal_embeddings
         self.num_image_patches = config.num_image_patches
@@ -212,48 +212,35 @@ class LlamaActionForCausalLM(nn.Module, SupportsMultiModal):
             self.lm_head = PPMissingLayer()
         self.make_empty_intermediate_tensors = (
             self.model.make_empty_intermediate_tensors)
+        
+    def _get_action_projection_dtype(self):
+        """Get the dtype of the action projection layer."""
+        return self.action_projection.weight.dtype
 
-    def forward(
-        self,
-        input_ids: torch.Tensor,
-        positions: torch.Tensor,
-        kv_caches: List[torch.Tensor],
-        attn_metadata: AttentionMetadata,
-        intermediate_tensors: Optional[IntermediateTensors] = None,
-        **kwargs: object,
-    ) -> Union[torch.Tensor, IntermediateTensors]:
-        """Forward pass for the model.
-        input_ids already accounts for the positions of the to-be-inserted action embeddings.
-    
-        action tokens are represetnted by -3.
-        example: [1287, 3342, ..., 6571, -3, ..., -3]
-        """
+    def forward(self, input_ids, positions, kv_caches, attn_metadata, intermediate_tensors=None, **kwargs):
         if intermediate_tensors is not None:
             input_ids = None
             inputs_embeds = None
         else:
-            action_token_indices = (input_ids == -3).nonzero(as_tuple=True)[0]
-            image_token_indices = (input_ids > 0).nonzero(as_tuple=True)[0]
-
-            image_tokens = input_ids[image_token_indices]
-            image_token_embeddings = self.model.get_input_embeddings(image_tokens)
-
-            inputs_embeds = torch.zeros(
-                (input_ids.size(0), image_token_embeddings.size(1)), 
-                device=input_ids.device, dtype=image_token_embeddings.dtype
-            )
-            inputs_embeds[image_token_indices] = image_token_embeddings
-
             actions = kwargs.pop("actions", None)
-            if actions is not None:
-                assert len(action_token_indices) == actions.size(0) * actions.size(1), "actions must have the same length as the number of action tokens"
-                actions = actions.to(dtype=self.action_projection.weight.dtype)
-                action_embeddings = self.action_projection(actions)
-                inputs_embeds[action_token_indices] = action_embeddings.view(-1, action_embeddings.size(-1))
+            is_action = (input_ids == -3)
+            
+            safe_input_ids = torch.where(is_action, torch.zeros_like(input_ids), input_ids)
+            inputs_embeds = self.model.get_input_embeddings(safe_input_ids)
+            
+            if actions is not None:                
+                actions = actions.to(dtype=self._get_action_projection_dtype())
+                action_embeds = self.action_projection(actions) 
+                # Scatter into the right positions
+                inputs_embeds[is_action] = action_embeds.view(-1, action_embeds.size(-1))
+                            
+            inputs_embeds = inputs_embeds + self.pos_embedding_spatio_temporal(positions)
             input_ids = None
-            inputs_embeds += self.pos_embedding_spatio_temporal(positions)
+            
+        
         hidden_states = self.model(input_ids, positions, kv_caches, attn_metadata, intermediate_tensors, inputs_embeds=inputs_embeds)
         return hidden_states
+
 
     def compute_logits(
         self,
@@ -333,46 +320,7 @@ class LlamaActionV2ForCausalLM(LlamaActionForCausalLM):
             nn.ReLU(),
             nn.Linear(config.hidden_size, config.hidden_size),
         )
-
-    def forward(
-        self,
-        input_ids: torch.Tensor,
-        positions: torch.Tensor,
-        kv_caches: List[torch.Tensor],
-        attn_metadata: AttentionMetadata,
-        intermediate_tensors: Optional[IntermediateTensors] = None,
-        **kwargs: object,
-    ) -> Union[torch.Tensor, IntermediateTensors]:
-        """Forward pass for the model.
-        input_ids already accounts for the positions of the to-be-inserted action embeddings.
-    
-        action tokens are represetnted by -3.
-        example: [1287, 3342, ..., 6571, -3, ..., -3]
-        """
-        if intermediate_tensors is not None:
-            input_ids = None
-            inputs_embeds = None
-        else:
-            action_token_indices = (input_ids == -3).nonzero(as_tuple=True)[0]
-            image_token_indices = (input_ids > 0).nonzero(as_tuple=True)[0]
-
-            image_tokens = input_ids[image_token_indices]
-            image_token_embeddings = self.model.get_input_embeddings(image_tokens)
-
-            inputs_embeds = torch.zeros(
-                (input_ids.size(0), image_token_embeddings.size(1)), 
-                device=input_ids.device, dtype=image_token_embeddings.dtype
-            )
-            inputs_embeds[image_token_indices] = image_token_embeddings
-
-            actions = kwargs.pop("actions", None)
-            if actions is not None:
-                assert len(action_token_indices) == actions.size(0) * actions.size(1), "actions must have the same length as the number of action tokens"
-                dtype = self.action_projection[0].weight.dtype
-                actions = actions.to(dtype=dtype)
-                action_embeddings = self.action_projection(actions)
-                inputs_embeds[action_token_indices] = action_embeddings.view(-1, action_embeddings.size(-1))
-            input_ids = None
-            inputs_embeds += self.pos_embedding_spatio_temporal(positions)
-        hidden_states = self.model(input_ids, positions, kv_caches, attn_metadata, intermediate_tensors, inputs_embeds=inputs_embeds)
-        return hidden_states
+        
+    def _get_action_projection_dtype(self):
+        """Get the dtype of the action projection layer (first linear layer in sequential)."""
+        return self.action_projection[0].weight.dtype

@@ -83,7 +83,7 @@ def prepare_args() -> argparse.Namespace:
         default="world_model",
         help="Name of the world model to use. This name corresponds to the name of subfolder in turing-motors/Terra huggingface repository."
     )
-    parser.add_argument("--temperature", type=float, default=0.9, help="Temperature for sampling.")
+    parser.add_argument("--temperature", type=float, default=0, help="Temperature for sampling.")
     parser.add_argument("--top_k", type=int, default=None, help="Top k tokens to sample from.")
     parser.add_argument("--top_p", type=float, default=1.0, help="Top p tokens to sample from.")
     parser.add_argument("--penalty_alpha", type=float, default=None, help="Penalty for repetition.")
@@ -308,10 +308,11 @@ def prepare_vllm_model(model_path: str, device: torch.device):
     model = LLM(
         model=model_path,
         skip_tokenizer_init=True,
-        enforce_eager=True,
+        enforce_eager=False,
         trust_remote_code=True,
         max_num_seqs=5,
         device=device,
+        max_seq_len_to_capture=16384,
         gpu_memory_utilization=0.5,
     )
     return model
