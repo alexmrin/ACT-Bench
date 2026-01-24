@@ -235,31 +235,29 @@ class LlamaActionForCausalLM(nn.Module, SupportsMultiModal):
             input_ids = None
             inputs_embeds = None
         else:
+            action_token_indices = (input_ids == -3).nonzero(as_tuple=True)[0]
+            image_token_indices = (input_ids > 0).nonzero(as_tuple=True)[0]
+
+            image_tokens = input_ids[image_token_indices]
+            image_token_embeddings = self.model.get_input_embeddings(image_tokens)
+
+            inputs_embeds = torch.zeros(
+                (input_ids.size(0), image_token_embeddings.size(1)), 
+                device=input_ids.device, dtype=image_token_embeddings.dtype
+            )
+            inputs_embeds[image_token_indices] = image_token_embeddings
+
             actions = kwargs.pop("actions", None)
             if actions is not None:
-                action_token_indices = (input_ids == -3).nonzero(as_tuple=True)[0]
-                image_token_indices = (input_ids > 0).nonzero(as_tuple=True)[0]
-                image_tokens = input_ids[image_token_indices]
-                image_token_embeddings = self.model.get_input_embeddings(image_tokens)
-                inputs_embeds = torch.zeros(
-                    (input_ids.size(0), image_token_embeddings.size(1)),  # ← actual dims
-                    device=input_ids.device, 
-                    dtype=image_token_embeddings.dtype
-                )
-                inputs_embeds[image_token_indices] = image_token_embeddings
-                
-                actions = actions.to(dtype=self._get_action_projection_dtype())
+                assert len(action_token_indices) == actions.size(0) * actions.size(1), "actions must have the same length as the number of action tokens"
+                actions = actions.to(dtype=self.action_projection.weight.dtype)
                 action_embeddings = self.action_projection(actions)
                 inputs_embeds[action_token_indices] = action_embeddings.view(-1, action_embeddings.size(-1))
-            else:
-                inputs_embeds = self.model.get_input_embeddings(input_ids)
-
-            inputs_embeds += self.pos_embedding_spatio_temporal(positions)
             input_ids = None
-            
+            inputs_embeds += self.pos_embedding_spatio_temporal(positions)
         hidden_states = self.model(input_ids, positions, kv_caches, attn_metadata, intermediate_tensors, inputs_embeds=inputs_embeds)
         return hidden_states
-
+    
     def compute_logits(
         self,
         hidden_states: torch.Tensor,
