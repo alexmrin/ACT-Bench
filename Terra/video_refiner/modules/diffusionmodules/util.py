@@ -203,12 +203,22 @@ class SiLU(nn.Module):
     def forward(self, x):
         return x * torch.sigmoid(x)
 
-
 class GroupNorm32(nn.GroupNorm):
     def forward(self, x):
-        if self.weight.dtype != torch.float32:
-            self.float()
-        return super().forward(x.float()).type(x.dtype)
+        # Cast weights temporarily for computation without modifying the module
+        orig_dtype = x.dtype
+        return F.group_norm(
+            x.float(), 
+            self.num_groups, 
+            self.weight.float() if self.weight is not None else None,
+            self.bias.float() if self.bias is not None else None,
+            self.eps
+        ).to(orig_dtype)
+        
+    # def forward(self, x):
+    #     if self.weight.dtype != torch.float32:
+    #         self.float()
+    #     return super().forward(x.float()).type(x.dtype)
 
 
 class CausalConv3d(nn.Conv3d):

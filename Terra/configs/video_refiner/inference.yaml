@@ -24,13 +24,13 @@ model:
       params:
         adm_in_channels: 768
         num_classes: sequential
-        use_checkpoint: True
+        use_checkpoint: False
         in_channels: 8
         out_channels: 4
         model_channels: 320
-        attention_resolutions: [ 4, 2, 1 ]
+        attention_resolutions: [4, 2, 1]
         num_res_blocks: 2
-        channel_mult: [ 1, 2, 4, 4 ]
+        channel_mult: [1, 2, 4, 4]
         num_head_channels: 64
         use_linear_in_transformer: True
         transformer_depth: 1
@@ -39,7 +39,7 @@ model:
         extra_ff_mix_layer: True
         use_spatial_context: True
         merge_strategy: learned_with_images
-        video_kernel_size: [ 3, 1, 1 ]
+        video_kernel_size: [3, 1, 1]
         add_lora: False
         action_control: False
 
@@ -83,7 +83,7 @@ model:
                 params:
                   embed_dim: 4
                   monitor: val/rec_loss
-                
+
                   ddconfig:
                     attn_type: vanilla-xformers
                     double_z: True
@@ -92,9 +92,9 @@ model:
                     in_channels: 3
                     out_ch: 3
                     ch: 128
-                    ch_mult: [ 1, 2, 4, 4 ]
+                    ch_mult: [1, 2, 4, 4]
                     num_res_blocks: 2
-                    attn_resolutions: [ ]
+                    attn_resolutions: []
                     dropout: 0.0
 
                   loss_config:
@@ -105,10 +105,10 @@ model:
       params:
         loss_config:
           target: torch.nn.Identity
-        
+
         regularizer_config:
           target: video_refiner.modules.autoencoding.regularizers.DiagonalGaussianRegularizer
-        
+
         encoder_config:
           target: video_refiner.modules.diffusionmodules.model.Encoder
           params:
@@ -119,11 +119,11 @@ model:
             in_channels: 3
             out_ch: 3
             ch: 128
-            ch_mult: [ 1, 2, 4, 4 ]
+            ch_mult: [1, 2, 4, 4]
             num_res_blocks: 2
-            attn_resolutions: [ ]
+            attn_resolutions: []
             dropout: 0.0
-        
+
         decoder_config:
           target: video_refiner.modules.autoencoding.temporal_ae.VideoDecoder
           params:
@@ -134,21 +134,21 @@ model:
             in_channels: 3
             out_ch: 3
             ch: 128
-            ch_mult: [ 1, 2, 4, 4 ]
+            ch_mult: [1, 2, 4, 4]
             num_res_blocks: 2
-            attn_resolutions: [ ]
+            attn_resolutions: []
             dropout: 0.0
-            video_kernel_size: [ 3, 1, 1 ]
-    
+            video_kernel_size: [3, 1, 1]
+
     scheduler_config:
       target: video_refiner.lr_scheduler.LambdaLinearScheduler
       params:
-        warm_up_steps: [ 1000 ]
-        cycle_lengths: [ 10000000000000 ]
-        f_start: [ 1.e-6 ]
-        f_max: [ 1. ]
-        f_min: [ 1. ]
-    
+        warm_up_steps: [1000]
+        cycle_lengths: [10000000000000]
+        f_start: [1.e-6]
+        f_max: [1.]
+        f_min: [1.]
+
     loss_fn_config:
       target: video_refiner.modules.diffusionmodules.loss.StandardDiffusionLoss
       params:
@@ -176,7 +176,7 @@ model:
           target: video_refiner.modules.diffusionmodules.discretizer.EDMDiscretization
           params:
             sigma_max: 700.0
-        
+
         guider_config:
           target: video_refiner.modules.diffusionmodules.guiders.LinearPredictionGuider
           params:

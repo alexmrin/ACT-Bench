@@ -38,6 +38,17 @@ class BaseDiffusionSampler:
         return x, s_in, sigmas, num_sigmas, cond, uc
 
     def denoise(self, x, denoiser, sigma, cond, cond_mask, uc):
+        # Figuring out how to fix the graph breaks
+        # import torch._dynamo as dynamo
+        
+        # print("Entering main loop")
+        # explaination = dynamo.explain(denoiser)(*self.guider.prepare_inputs(x, sigma, cond, cond_mask, uc))
+        # print(explaination)
+        
+        # import sys 
+        # print("Exiting...")
+        # sys.exit()
+        
         denoised = denoiser(*self.guider.prepare_inputs(x, sigma, cond, cond_mask, uc))
         dtype = denoised.dtype
         denoised = self.guider(denoised, sigma).to(dtype=dtype)

@@ -83,7 +83,7 @@ def prepare_args() -> argparse.Namespace:
         default="world_model",
         help="Name of the world model to use. This name corresponds to the name of subfolder in turing-motors/Terra huggingface repository."
     )
-    parser.add_argument("--temperature", type=float, default=0, help="Temperature for sampling.")
+    parser.add_argument("--temperature", type=float, default=0.9, help="Temperature for sampling.")
     parser.add_argument("--top_k", type=int, default=None, help="Top k tokens to sample from.")
     parser.add_argument("--top_p", type=float, default=1.0, help="Top p tokens to sample from.")
     parser.add_argument("--penalty_alpha", type=float, default=None, help="Penalty for repetition.")
@@ -301,14 +301,14 @@ def video_refiner_decode(output_tokens: torch.Tensor, video_refiner, min_overlap
 
 def prepare_vllm_model(model_path: str, device: torch.device):
     from vllm import LLM, ModelRegistry
-    from vllm_impl.modeling_llama_action import LlamaActionForCausalLM, LlamaActionV2ForCausalLM
+    from vllm_impl.baseline_llama_action import LlamaActionForCausalLM, LlamaActionV2ForCausalLM
 
     ModelRegistry.register_model("LlamaActionForCausalLM", LlamaActionForCausalLM)
     ModelRegistry.register_model("LlamaActionV2ForCausalLM", LlamaActionV2ForCausalLM)
     model = LLM(
         model=model_path,
         skip_tokenizer_init=True,
-        enforce_eager=False,
+        enforce_eager=FalseZ,
         trust_remote_code=True,
         max_num_seqs=5,
         device=device,
