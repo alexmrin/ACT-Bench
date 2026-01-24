@@ -308,7 +308,7 @@ def prepare_vllm_model(model_path: str, device: torch.device):
     model = LLM(
         model=model_path,
         skip_tokenizer_init=True,
-        enforce_eager=FalseZ,
+        enforce_eager=True,
         trust_remote_code=True,
         max_num_seqs=5,
         device=device,
