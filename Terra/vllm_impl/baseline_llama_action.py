@@ -59,15 +59,14 @@ LlamaActionConfig = HF_LlamaActionConfig.__class__
 
 
 def get_max_action_tokens(ctx: InputContext):
-    hf_config = ctx.get_hf_config(LlamaActionConfig)
+    hf_config = ctx.model_config.hf_config
     num_action_tokens = hf_config.num_action_embeddings
     num_frames = hf_config.num_temporal_embeddings - 1
     return num_action_tokens * num_frames
 
 
 def create_dummy_data(ctx: InputContext, seq_len: int, mm_counts: Mapping[str, int]):
-    hf_config = ctx.get_hf_config(LlamaActionConfig)
-
+    hf_config = ctx.model_config.hf_config
     num_frames = hf_config.num_temporal_embeddings
     vocab_size = hf_config.vocab_size
     num_action_tokens = hf_config.num_action_embeddings
