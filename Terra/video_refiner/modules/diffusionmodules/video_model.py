@@ -391,12 +391,12 @@ class VideoUNet(nn.Module):
         t_emb = timestep_embedding(timesteps, self.model_channels, repeat_only=False).to(dtype=x.dtype)
         
         # Because cond_mask is always zeros, we can skip this condition.
-        # if cond_mask is not None and cond_mask.any():
-        #     cond_mask_ = cond_mask[..., None].float()
-        #     emb = self.cond_time_stack_embed(t_emb) * cond_mask_ + self.time_embed(t_emb) * (1 - cond_mask_)
-        # else:
-        #     emb = self.time_embed(t_emb)
-        emb = self.time_embed(t_emb)
+        if cond_mask is not None and cond_mask.any():
+            cond_mask_ = cond_mask[..., None].float()
+            emb = self.cond_time_stack_embed(t_emb) * cond_mask_ + self.time_embed(t_emb) * (1 - cond_mask_)
+        else:
+            emb = self.time_embed(t_emb)
+        # emb = self.time_embed(t_emb)
 
         if num_frames > 1 and context is not None and context.shape[0] != x.shape[0]:
             assert context.shape[0] == x.shape[0] // num_frames, f"{context.shape} {x.shape}"

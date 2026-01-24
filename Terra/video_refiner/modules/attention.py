@@ -71,8 +71,8 @@ def default(val, d):
         return val
     else:
         # Dynamo doesn't support isfunction(), but it supports callable()
-        return d() if callable(d) else d
-        # return d() if isfunction(d) else d
+        # return d() if callable(d) else d
+        return d() if isfunction(d) else d
 
 def max_neg_value(t):
     return -torch.finfo(t.dtype).max
